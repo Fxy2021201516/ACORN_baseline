@@ -21,17 +21,22 @@ M=32
 M_beta=64
 efs=10
 
-
 parent_dir=../ACORN_data/${dataset}/${now}_${dataset}  
-
 rm -rf ../ACORN_data/${dataset}/${now}_${dataset}  
+mkdir -p ${parent_dir}
 
-mkdir -p ${parent_dir}                      
-dir=${parent_dir}/MB${M_beta}
-mkdir -p ${dir}                          
-
-
-TZ='America/Los_Angeles' date +"Start time: %H:%M" &>> ${dir}/summary_sift_n=${N}_gamma=${gamma}.txt
-
-
-./build/demos/test_acorn $N $gamma $dataset $M $M_beta $efs  &>> ${dir}/summary_sift_n=${N}_gamma=${gamma}.txt
+# 循环运行10次测试
+for i in {1..5}; do
+    # 为每次运行创建单独的子目录
+    dir=${parent_dir}/MB${M_beta}_query${i}
+    mkdir -p ${dir}
+    
+    # 设置当前查询路径
+    query_path="../ACORN_data/words/words_query/word_query_${i}"
+    
+    TZ='America/Los_Angeles' date +"Start time for query ${i}: %H:%M" &>> ${dir}/summary_sift_n=${N}_gamma=${gamma}.txt
+    
+    # 运行测试程序，传入查询路径作为额外参数
+    ./build/demos/test_acorn $N $gamma $dataset $M $M_beta $efs "${query_path}" &>> ${dir}/summary_sift_n=${N}_gamma=${gamma}.txt
+    
+done

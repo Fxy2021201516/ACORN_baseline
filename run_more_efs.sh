@@ -1,16 +1,17 @@
 export debugSearchFlag=1
 #! /bin/bash
 
-# 删除 build 目录及其下的文件
+# Clean build
 rm -rf build
 
+# Build with CMake
 cmake -DFAISS_ENABLE_GPU=OFF -DFAISS_ENABLE_PYTHON=OFF -DBUILD_TESTING=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -B build
 make -C build -j faiss
 make -C build utils
 make -C build test_acorn
 
 ##########################################
-# TESTING SIFT1M and PAPER
+# TEST CONFIGURATION
 ##########################################
 now=$(date +"%m-%d-%Y")
 
@@ -19,35 +20,86 @@ gamma=80
 dataset=words
 M=32 
 M_beta=64
-efs=10
 
 parent_dir=../ACORN_data/${dataset}/${now}_${dataset}  
-
 rm -rf ../ACORN_data/${dataset}/${now}_${dataset}  
+mkdir -p ${parent_dir}
 
-mkdir -p ${parent_dir}                      
+# Files for raw and averaged results
+raw_results="${parent_dir}/raw_results_all_efs.csv"
+avg_results="${parent_dir}/averaged_results_by_efs.csv"
 
-# 创建一个汇总文件，记录所有 efs 的 QPS 和 Recall
-summary_file="${parent_dir}/summary_all_efs.txt"
-echo "efs,QPS_ACORN,Recall_ACORN" > ${summary_file}
+# Write headers
+echo "query,efs,QPS_ACORN,Recall_ACORN,QPS_ACORN_1,Recall_ACORN_1" > ${raw_results}
+echo "efs,Avg_QPS_ACORN,Avg_Recall_ACORN,Avg_QPS_ACORN_1,Avg_Recall_ACORN_1" > ${avg_results}
 
-# 循环测试 efs 值
-for efs in $(seq 4 1 32); do
-    dir=${parent_dir}/MB${M_beta}_efs${efs}  # 在目录名中加入 efs 值
-    mkdir -p ${dir}                          
+##########################################
+# RUN TESTS
+##########################################
+for i in {1..2}; do
+    query_path="../ACORN_data/words/words_query/word_query_${i}"
+    
+    # Sort efs values to ensure consistent ordering
+    efs_values=($(seq 4 2 6))
+    first_run=true
+    
+    for efs in "${efs_values[@]}"; do
+        dir=${parent_dir}/MB${M_beta}_query${i}_efs${efs}
+        mkdir -p ${dir}
 
-    TZ='America/Los_Angeles' date +"Start time: %H:%M" &>> ${dir}/summary_sift_n=${N}_gamma=${gamma}_efs=${efs}.txt
+        # Set generate_json flag (true only for first efs of each query)
+        if [ "$first_run" = true ]; then
+            generate_json="1"
+            first_run=false
+        else
+            generate_json="0"
+        fi
 
-    # 运行测试，传递 efs 参数
-    ./build/demos/test_acorn $N $gamma $dataset $M $M_beta $efs &>> ${dir}/summary_sift_n=${N}_gamma=${gamma}_efs=${efs}.txt
+        echo "Running test for query ${i} with efs=${efs}, generate_json=${generate_json}"
+        ./build/demos/test_acorn $N $gamma $dataset $M $M_beta $efs "${query_path}" "${generate_json}" &>> ${dir}/summary.txt
 
-    TZ='America/Los_Angeles' date +"End time: %H:%M" &>> ${dir}/summary_sift_n=${N}_gamma=${gamma}_efs=${efs}.txt
+        # Extract metrics
+        qps_acorn=$(grep "ACORN:" ${dir}/summary.txt | grep "QPS:" | grep -v "ACORN-1" | awk -F'QPS:' '{print $2}' | awk '{print $1}')
+        recall_acorn=$(grep "ACORN:" ${dir}/summary.txt | grep "Recall:" | grep -v "ACORN-1" | awk '{print $NF}')
+        qps_acorn1=$(grep "ACORN-1:" ${dir}/summary.txt | grep "QPS:" | awk -F'QPS:' '{print $2}' | awk '{print $1}')
+        recall_acorn1=$(grep "ACORN-1:" ${dir}/summary.txt | grep "Recall:" | awk '{print $NF}')
 
-    # 从日志文件中提取 QPS 和 Recall
-    qps_acorn=$(grep "QPS:" ${dir}/summary_sift_n=${N}_gamma=${gamma}_efs=${efs}.txt |  awk -F'QPS:' '{print $2}' | awk '{print $1}')
-    recall_acorn=$(grep "Recall:" ${dir}/summary_sift_n=${N}_gamma=${gamma}_efs=${efs}.txt |  awk '{print $NF}')
-
-    # 将结果追加到汇总文件中
-    echo "${efs},${qps_acorn},${recall_acorn}" >> ${summary_file}
+        # Save raw results
+        echo "${i},${efs},${qps_acorn},${recall_acorn},${qps_acorn1},${recall_acorn1}" >> ${raw_results}
+    done
 done
 
+##########################################
+# CALCULATE AVERAGES
+##########################################
+echo "Calculating averages for each efs value..."
+
+# Process each unique efs value
+for efs in $(seq 4 2 8); do
+    # Extract all lines for this efs value
+    grep ",${efs}," ${raw_results} > ${parent_dir}/temp_efs${efs}.csv
+    
+    # Calculate averages using awk
+    awk -F',' -v efs=${efs} '
+    BEGIN {
+        sum_qps=0; sum_recall=0; sum_qps1=0; sum_recall1=0; count=0
+    }
+    {
+        sum_qps += $3; sum_recall += $4
+        sum_qps1 += $5; sum_recall1 += $6
+        count++
+    }
+    END {
+        avg_qps = sum_qps/count
+        avg_recall = sum_recall/count
+        avg_qps1 = sum_qps1/count
+        avg_recall1 = sum_recall1/count
+        printf "%d,%.2f,%.4f,%.2f,%.4f\n", efs, avg_qps, avg_recall, avg_qps1, avg_recall1
+    }' ${parent_dir}/temp_efs${efs}.csv >> ${avg_results}
+    
+    rm ${parent_dir}/temp_efs${efs}.csv
+done
+
+echo "All tests completed. Results saved to:"
+echo "Raw data: ${raw_results}"
+echo "Averaged results: ${avg_results}"
