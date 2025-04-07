@@ -149,6 +149,10 @@ std::string get_file_name(std::string dataset, bool is_base, std::string BASE_DI
    {
       return BASE_DIR + "/" + (is_base ? "words_base" : "words_query") + ".fvecs";
    }
+   else if (dataset == "MTG")
+   {
+      return BASE_DIR + "/" + (is_base ? "MTG_base" : "MTG_query") + ".fvecs";
+   }
    else
    {
       std::cerr << "Invalid datset in get_file_name" << std::endl;
@@ -610,6 +614,21 @@ std::vector<std::vector<int>> load_aq_multi(
       printf("loaded query attributes from: %s\n", filepath.c_str());
       return v;
    }
+   else if (dataset == "MTG")
+   {
+      assert((alpha == -2 || alpha == 0 || alpha == 2) ||
+             !"alpha must be value in [-2, 0, 2]");
+
+      // Compose File Name
+      std::stringstream filepath_stream;
+      filepath_stream << ATTR_DATA_DIR << "/MTG_query_labels.txt";
+      std::string filepath = filepath_stream.str();
+
+      std::vector<std::vector<int>> v =
+          load_txt_to_vector_multi<int>(filepath);
+      printf("loaded query attributes from: %s\n", filepath.c_str());
+      return v;
+   }
    else
    {
       std::cerr << "Invalid dataset in load_aq" << std::endl;
@@ -832,6 +851,18 @@ std::vector<std::vector<int>> load_ab_muti(
       std::vector<std::vector<int>> v =
           load_txt_to_vector_multi<int>(filepath);
       printf("loaded base attributes from: %s\n", filepath.c_str());
+      return v;
+   }
+   else if (dataset == "MTG")
+   {
+      std::stringstream filepath_stream;
+      filepath_stream << ATTR_DATA_DIR << "/MTG_base_labels.txt";
+      std::string filepath = filepath_stream.str();
+
+      std::vector<std::vector<int>> v =
+          load_txt_to_vector_multi<int>(filepath);
+      std::cout << "loaded base attributes from:" << filepath.c_str()
+                << std::endl;
       return v;
    }
    else
@@ -1158,6 +1189,49 @@ void save_sorted_filtered_distances_to_txt(
       //   std::cout << "Saved results for query " << xq << " to: " <<
       //   filepath<< std::endl;
    }
+}
+
+// fxy_add
+std::vector<std::vector<std::pair<int, float>>> read_all_sorted_filtered_distances_from_txt(
+    const std::string &input_dir,
+    size_t nq,
+    size_t N)
+{
+   std::vector<std::vector<std::pair<int, float>>> sorted_results(nq);
+
+   for (size_t xq = 0; xq < nq; xq++)
+   {
+      // Construct the filename (e.g., "filtered_sorted_distances/query_results_0.txt")
+      std::string filepath = input_dir + "/filter_sorted_dist_" + std::to_string(xq) + ".txt";
+
+      // Open the file
+      std::ifstream infile(filepath);
+      if (!infile.is_open())
+      {
+         std::cerr << "Failed to open file: " << filepath << std::endl;
+         continue;
+      }
+
+      std::string line;
+      while (std::getline(infile, line))
+      {
+         std::istringstream iss(line);
+         int id;
+         float distance;
+
+         if (!(iss >> id >> distance))
+         {
+            std::cerr << "Error parsing line in file: " << filepath << std::endl;
+            continue;
+         }
+
+         sorted_results[xq].emplace_back(id, distance);
+      }
+
+      infile.close();
+   }
+
+   return sorted_results;
 }
 
 // fxy_add

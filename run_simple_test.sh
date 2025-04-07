@@ -26,7 +26,7 @@ rm -rf ../ACORN_data/${dataset}/${now}_${dataset}
 mkdir -p ${parent_dir}
 
 # 循环运行10次测试
-for i in {1..5}; do
+for i in {1..2}; do
     # 为每次运行创建单独的子目录
     dir=${parent_dir}/MB${M_beta}_query${i}
     mkdir -p ${dir}

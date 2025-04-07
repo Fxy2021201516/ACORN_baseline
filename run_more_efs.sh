@@ -36,11 +36,11 @@ echo "efs,Avg_QPS_ACORN,Avg_Recall_ACORN,Avg_QPS_ACORN_1,Avg_Recall_ACORN_1" > $
 ##########################################
 # RUN TESTS
 ##########################################
-for i in {1..2}; do
-    query_path="../ACORN_data/words/words_query/word_query_${i}"
+for i in {1..10}; do
+    query_path="../ACORN_data/words/words_query/words_query_${i}"
     
     # Sort efs values to ensure consistent ordering
-    efs_values=($(seq 4 2 6))
+    efs_values=($(seq 4 2 32))
     first_run=true
     
     for efs in "${efs_values[@]}"; do
@@ -75,7 +75,7 @@ done
 echo "Calculating averages for each efs value..."
 
 # Process each unique efs value
-for efs in $(seq 4 2 8); do
+for efs in $(seq 4 2 32); do
     # Extract all lines for this efs value
     grep ",${efs}," ${raw_results} > ${parent_dir}/temp_efs${efs}.csv
     

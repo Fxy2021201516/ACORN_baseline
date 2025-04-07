@@ -56,13 +56,13 @@ int main(int argc, char *argv[])
    // --...\n");
    double t0 = elapsed();
 
-   int efc = 40;   // default is 40
-   int efs = 16;   //  default is 16
-   int k = 10;     // search parameter
-   size_t d = 128; // dimension of the vectors to index - will be overwritten
-                   // by the dimension of the dataset
-   int M;          // HSNW param M TODO change M back
-   int M_beta;     // param for compression
+   int efc = 40;    // default is 40
+   int efs = 16;    //  default is 16
+   int k = 10;      // search parameter
+   size_t d = 1152; // dimension of the vectors to index - will be overwritten
+                    // by the dimension of the dataset
+   int M;           // HSNW param M TODO change M back
+   int M_beta;      // param for compression
    // float attr_sel = 0.001;
    // int gamma = (int) 1 / attr_sel;
    int gamma;
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
       if (dataset != "sift1M" && dataset != "sift1M_test" &&
           dataset != "sift1B" && dataset != "tripclick" &&
           dataset != "paper" && dataset != "paper_rand2m" &&
-          dataset != "words")
+          dataset != "words" && dataset != "MTG")
       {
          printf("got dataset: %s\n", dataset.c_str());
          fprintf(stderr,
@@ -206,7 +206,6 @@ int main(int argc, char *argv[])
    { // populating the database
       std::cout << "====================Vectors====================\n"
                 << std::endl;
-      // printf("====================Vectors====================\n");
 
       printf("[%.3f s] Loading database\n", elapsed() - t0);
 
@@ -235,17 +234,21 @@ int main(int argc, char *argv[])
       //   base_index.add(N, xb);
       //   printf("[%.3f s] Vectors added to base index \n", elapsed() - t0);
       //   std::cout << "Base index vectors added: " << nb << std::endl;
-
+      double t_acorn_0 = elapsed();
       hybrid_index.add(N, xb);
+      double t_acorn_1 = elapsed();
       printf("[%.3f s] Vectors added to hybrid index \n", elapsed() - t0);
       std::cout << "Hybrid index vectors added" << nb << std::endl;
-      // printf("SKIPPED creating ACORN-gamma\n");
-
+      std::cout << "========ACORN index add time: " << t_acorn_1 - t_acorn_0 << std::endl;
+      //  printf("SKIPPED creating ACORN-gamma\n");
+      double t_acorn1_0 = elapsed();
       hybrid_index_gamma1.add(N, xb);
+      double t_acorn1_1 = elapsed();
       printf("[%.3f s] Vectors added to hybrid index with gamma=1 \n",
              elapsed() - t0);
       std::cout << "Hybrid index with gamma=1 vectors added" << nb
                 << std::endl;
+      std::cout << "========ACORN-1 index add time: " << t_acorn1_1 - t_acorn1_0 << std::endl;
 
       delete[] xb;
    }
@@ -349,7 +352,7 @@ int main(int argc, char *argv[])
       printf("[%.3f s] Query results (vector ids, then distances):\n",
              elapsed() - t0);
 
-      int nq_print = std::min(100, (int)nq);
+      int nq_print = std::min(10, (int)nq);
       for (int i = 0; i < nq_print; i++)
       {
          printf("query %2d nn's: [", i);
@@ -389,37 +392,46 @@ int main(int argc, char *argv[])
              qps);
 
       //==============计算recall==========================
+      double t_recall_0 = elapsed();
+
       float *all_distances = new float[nq * N]; // 存储距离结果
+      std::vector<std::vector<std::pair<int, float>>> sorted_results;
       if (generate_json)
       {
          hybrid_index.calculate_distances(
              nq, xq, k, all_distances, nns2.data());
          save_distances_to_txt(nq, N, all_distances, "distances", MY_DIS_DIR);
+         sorted_results = get_sorted_filtered_distances(
+             all_distances, filter_ids_map, nq, N);
+         save_sorted_filtered_distances_to_txt(
+             sorted_results,
+             std::string(MY_DIS_SORT_DIR), // 输出目录
+             "filter_sorted_dist_"         // 文件名前缀
+         );
       }
       else
       {
-         all_distances =
-             read_all_distances_from_txt(std::string(MY_DIS_DIR), nq, N);
+         // all_distances = read_all_distances_from_txt(std::string(MY_DIS_DIR), nq, N);
+         sorted_results = read_all_sorted_filtered_distances_from_txt(
+             std::string(MY_DIS_SORT_DIR), nq, N);
+         std::cout << "sorted_results.size():" << sorted_results.size() << std::endl;
       }
 
-      auto sorted_results = get_sorted_filtered_distances(
-          all_distances, filter_ids_map, nq, N);
-      save_sorted_filtered_distances_to_txt(
-          sorted_results,
-          std::string(MY_DIS_SORT_DIR), // 输出目录
-          "filter_sorted_dist_"         // 文件名前缀
-      );
       auto recalls = compute_recall(nns2, sorted_results, nq, k);
       // 打印recall
-      for (int i = 0; i < nq; i++)
-      {
-         printf("query %d: %.2f\n", i, recalls[i]);
-      }
+      // for (int i = 0; i < nq; i++)
+      // {
+      //    printf("query %d: %.2f\n", i, recalls[i]);
+      // }
       // recall平均值
       float recall_sum =
           std::accumulate(recalls.begin(), recalls.end(), 0.0f);
       float recall_mean = recall_sum / nq;
       printf("ACORN: Recall: %.2f\n", recall_mean);
+      double t_recall_1 = elapsed();
+      printf("[%.3f s] cal Recall time: %f seconds\n",
+             elapsed() - t0,
+             t_recall_1 - t_recall_0);
 
       std::cout << "finished hybrid index examples" << std::endl;
    }
@@ -514,7 +526,7 @@ int main(int argc, char *argv[])
       printf("[%.3f s] Query results (vector ids, then distances):\n",
              elapsed() - t0);
 
-      int nq_print = std::min(100, (int)nq);
+      int nq_print = std::min(10, (int)nq);
       for (int i = 0; i < nq_print; i++)
       {
          printf("query %2d nn's: [", i);
@@ -554,23 +566,16 @@ int main(int argc, char *argv[])
              qps);
 
       //==============计算recall==========================
-      float *all_distances = new float[nq * N]; // 存储距离结果
+      auto sorted_results = read_all_sorted_filtered_distances_from_txt(
+          std::string(MY_DIS_SORT_DIR), nq, N);
+      std::cout << "sorted_results.size():" << sorted_results.size() << std::endl;
 
-      all_distances = read_all_distances_from_txt(std::string(MY_DIS_DIR), nq, N);
-
-      auto sorted_results = get_sorted_filtered_distances(
-          all_distances, filter_ids_map3, nq, N);
-      save_sorted_filtered_distances_to_txt(
-          sorted_results,
-          std::string(MY_DIS_SORT_DIR), // 输出目录
-          "filter_sorted_dist_"         // 文件名前缀
-      );
       auto recalls = compute_recall(nns3, sorted_results, nq, k);
       // 打印recall
-      for (int i = 0; i < nq; i++)
-      {
-         printf("query %d: %.2f\n", i, recalls[i]);
-      }
+      // for (int i = 0; i < nq; i++)
+      // {
+      //    printf("query %d: %.2f\n", i, recalls[i]);
+      // }
       // recall平均值
       float recall_sum =
           std::accumulate(recalls.begin(), recalls.end(), 0.0f);
