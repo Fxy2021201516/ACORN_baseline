@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
       if (dataset != "sift1M" && dataset != "sift1M_test" &&
           dataset != "sift1B" && dataset != "tripclick" &&
           dataset != "paper" && dataset != "paper_rand2m" &&
-          dataset != "words" && dataset != "MTG")
+          dataset != "words" && dataset != "MTG" && dataset != "arxiv") // TODO
       {
          printf("got dataset: %s\n", dataset.c_str());
          fprintf(stderr,
@@ -211,7 +211,7 @@ int main(int argc, char *argv[])
 
       size_t nb, d2;
       bool is_base = 1;
-      std::string filename = get_file_name(dataset, is_base, BASE_DIR);
+      std::string filename = get_file_name(dataset, is_base, BASE_DIR); // TODO
       float *xb = fvecs_read(filename.c_str(), &d2, &nb);
       assert(d == d2 || !"dataset does not dim 128 as expected");
       printf("[%.3f s] Loaded base vectors from file: %s\n",
@@ -346,7 +346,7 @@ int main(int argc, char *argv[])
           k,
           dis2.data(),
           nns2.data(),
-          filter_ids_map.data()); // TODO change first argument back to nq
+          filter_ids_map.data());
       double t2_x = elapsed();
 
       printf("[%.3f s] Query results (vector ids, then distances):\n",

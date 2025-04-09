@@ -153,6 +153,10 @@ std::string get_file_name(std::string dataset, bool is_base, std::string BASE_DI
    {
       return BASE_DIR + "/" + (is_base ? "MTG_base" : "MTG_query") + ".fvecs";
    }
+   else if (dataset == "arxiv")
+   {
+      return BASE_DIR + "/" + (is_base ? "arxiv_base" : "arxiv_query") + ".fvecs";
+   }
    else
    {
       std::cerr << "Invalid datset in get_file_name" << std::endl;
@@ -629,6 +633,21 @@ std::vector<std::vector<int>> load_aq_multi(
       printf("loaded query attributes from: %s\n", filepath.c_str());
       return v;
    }
+   else if (dataset == "arxiv")
+   {
+      assert((alpha == -2 || alpha == 0 || alpha == 2) ||
+             !"alpha must be value in [-2, 0, 2]");
+
+      // Compose File Name
+      std::stringstream filepath_stream;
+      filepath_stream << ATTR_DATA_DIR << "/arxiv_query_labels.txt";
+      std::string filepath = filepath_stream.str();
+
+      std::vector<std::vector<int>> v =
+          load_txt_to_vector_multi<int>(filepath);
+      printf("loaded query attributes from: %s\n", filepath.c_str());
+      return v;
+   }
    else
    {
       std::cerr << "Invalid dataset in load_aq" << std::endl;
@@ -857,6 +876,18 @@ std::vector<std::vector<int>> load_ab_muti(
    {
       std::stringstream filepath_stream;
       filepath_stream << ATTR_DATA_DIR << "/MTG_base_labels.txt";
+      std::string filepath = filepath_stream.str();
+
+      std::vector<std::vector<int>> v =
+          load_txt_to_vector_multi<int>(filepath);
+      std::cout << "loaded base attributes from:" << filepath.c_str()
+                << std::endl;
+      return v;
+   }
+   else if (dataset == "arxiv")
+   {
+      std::stringstream filepath_stream;
+      filepath_stream << ATTR_DATA_DIR << "/arxiv_base_labels.txt";
       std::string filepath = filepath_stream.str();
 
       std::vector<std::vector<int>> v =

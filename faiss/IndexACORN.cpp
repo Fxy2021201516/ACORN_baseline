@@ -131,6 +131,7 @@ namespace faiss
           bool verbose,
           bool preset_levels = false)
       {
+         omp_set_num_threads(1); // thread=1
          size_t d = index_acorn.d;
          ACORN &acorn = index_acorn.acorn;
          size_t ntotal = n0 + n;
@@ -367,6 +368,7 @@ namespace faiss
        char *filter_id_map,
        const SearchParameters *params_in) const
    {
+      omp_set_num_threads(1); // thread=1
       // std::cout << "enter IndexACORN::search" << std::endl;
 
       FAISS_THROW_IF_NOT(k > 0);
@@ -393,14 +395,14 @@ namespace faiss
       {
          idx_t i1 = std::min(i0 + check_period, n);
 
-#pragma omp parallel num_threads(16)
+#pragma omp parallel num_threads(1)
          {
             VisitedTable vt(ntotal);
 
             DistanceComputer *dis = storage_distance_computer(storage);
             ScopeDeleter1<DistanceComputer> del(dis);
 
-#pragma omp for reduction(+ : n1, n2, n3, ndis, nreorder, candidates_loop)
+            // #pragma omp for reduction(+ : n1, n2, n3, ndis, nreorder, candidates_loop)
             for (idx_t i = i0; i < i1; i++)
             {
                idx_t *idxi = labels + i * k;
