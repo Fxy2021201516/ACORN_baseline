@@ -39,7 +39,7 @@ echo "efs,Avg_QPS_ACORN,Avg_Recall_ACORN,Avg_QPS_ACORN_1,Avg_Recall_ACORN_1" > $
 for i in {1..1}; do
     query_path="../ACORN_data/MTG/MTG_query/MTG_query_${i}"
     # Sort efs values to ensure consistent ordering
-    efs_values=($(seq 16 16 128))
+    efs_values=($(seq 16 16 16))
 
     for efs in "${efs_values[@]}"; do
         dir=${parent_dir}/MB${M_beta}_query${i}_efs${efs}
@@ -48,7 +48,7 @@ for i in {1..1}; do
         # Run each efs 10 times
         for run in {1..5}; do
             # Set generate_json flag (true only for first efs of each query)
-            if [ "$efs" -eq 16 ] && [ "$run" -eq 1 ]; then
+            if [ "$efs" -eq 16 ] && [ "$run" -eq 0 ]; then
                generate_json="1"
                echo "Generating JSON for query ${i} (first run only)"
             else
@@ -69,37 +69,37 @@ for i in {1..1}; do
     done
 done
 
-##########################################
-# CALCULATE AVERAGES
-##########################################
-echo "Calculating averages for each efs value..."
+# ##########################################
+# # CALCULATE AVERAGES
+# ##########################################
+# echo "Calculating averages for each efs value..."
 
-# Process each unique efs value
-for efs in $(seq 16 16 128); do
-    # Extract all lines for this efs value (all queries and all runs)
-    grep ",${efs}," ${raw_results} > ${parent_dir}/temp_efs${efs}.csv
+# # Process each unique efs value
+# for efs in $(seq 16 16 128); do
+#     # Extract all lines for this efs value (all queries and all runs)
+#     grep ",${efs}," ${raw_results} > ${parent_dir}/temp_efs${efs}.csv
     
-    # Calculate averages using awk - now averaging over 10 queries * 10 runs = 100 data points per efs
-    awk -F',' -v efs=${efs} '
-    BEGIN {
-        sum_qps=0; sum_recall=0; sum_qps1=0; sum_recall1=0; count=0
-    }
-    {
-        sum_qps += $4; sum_recall += $5
-        sum_qps1 += $6; sum_recall1 += $7
-        count++
-    }
-    END {
-        avg_qps = sum_qps/count
-        avg_recall = sum_recall/count
-        avg_qps1 = sum_qps1/count
-        avg_recall1 = sum_recall1/count
-        printf "%d,%.2f,%.4f,%.2f,%.4f\n", efs, avg_qps, avg_recall, avg_qps1, avg_recall1
-    }' ${parent_dir}/temp_efs${efs}.csv >> ${avg_results}
+#     # Calculate averages using awk - now averaging over 10 queries * 10 runs = 100 data points per efs
+#     awk -F',' -v efs=${efs} '
+#     BEGIN {
+#         sum_qps=0; sum_recall=0; sum_qps1=0; sum_recall1=0; count=0
+#     }
+#     {
+#         sum_qps += $4; sum_recall += $5
+#         sum_qps1 += $6; sum_recall1 += $7
+#         count++
+#     }
+#     END {
+#         avg_qps = sum_qps/count
+#         avg_recall = sum_recall/count
+#         avg_qps1 = sum_qps1/count
+#         avg_recall1 = sum_recall1/count
+#         printf "%d,%.2f,%.4f,%.2f,%.4f\n", efs, avg_qps, avg_recall, avg_qps1, avg_recall1
+#     }' ${parent_dir}/temp_efs${efs}.csv >> ${avg_results}
     
-    rm ${parent_dir}/temp_efs${efs}.csv
-done
+#     rm ${parent_dir}/temp_efs${efs}.csv
+# done
 
-echo "All tests completed. Results saved to:"
-echo "Raw data: ${raw_results}"
-echo "Averaged results: ${avg_results}"
+# echo "All tests completed. Results saved to:"
+# echo "Raw data: ${raw_results}"
+# echo "Averaged results: ${avg_results}"

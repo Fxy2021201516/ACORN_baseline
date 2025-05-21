@@ -39,15 +39,15 @@ echo "efs,Avg_QPS_ACORN,Avg_Recall_ACORN,Avg_QPS_ACORN_1,Avg_Recall_ACORN_1" > $
 for i in {1..1}; do
     query_path="../ACORN_data/words/words_query/words_query_${i}"
     # Sort efs values to ensure consistent ordering
-    efs_values=($(seq 16 4 128))
+    efs_values=($(seq 16 8 64))
 
     for efs in "${efs_values[@]}"; do
         dir=${parent_dir}/MB${M_beta}_query${i}_efs${efs}
         mkdir -p ${dir}
 
-        # Run each efs 10 times
         for run in {1..5}; do
             # Set generate_json flag (true only for first efs of each query)
+            csv_path="${parent_dir}/words_i${i}_efs${efs}_run${run}.csv"
             if [ "$efs" -eq 16 ] && [ "$run" -eq 1 ]; then
                generate_json="1"
                echo "Generating JSON for query ${i} (first run only)"
@@ -55,7 +55,7 @@ for i in {1..1}; do
                generate_json="0"
             fi
             echo "Running test for query ${i} with efs=${efs}, run=${run}, generate_json=${generate_json}"
-            ./build_words/demos/test_acorn $N $gamma $dataset $M $M_beta $efs "${query_path}" "${generate_json}" &>> ${dir}/summary_run${run}.txt
+            ./build_words/demos/test_acorn $N $gamma $dataset $M $M_beta $efs "${query_path}" "${csv_path}" "${generate_json}" &>> ${dir}/summary_run${run}.txt
 
             # Extract metrics
             qps_acorn=$(grep "ACORN:" ${dir}/summary_run${run}.txt | grep "QPS:" | grep -v "ACORN-1" | awk -F'QPS:' '{print $2}' | awk '{print $1}')
@@ -75,7 +75,7 @@ done
 echo "Calculating averages for each efs value..."
 
 # Process each unique efs value
-for efs in $(seq 16 4 128); do
+for efs in $(seq 16 8 64); do
     # Extract all lines for this efs value (all queries and all runs)
     grep ",${efs}," ${raw_results} > ${parent_dir}/temp_efs${efs}.csv
     

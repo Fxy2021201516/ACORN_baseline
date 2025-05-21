@@ -131,7 +131,7 @@ namespace faiss
           bool verbose,
           bool preset_levels = false)
       {
-         omp_set_num_threads(1); // thread=1
+         // omp_set_num_threads(1); // thread=1
          size_t d = index_acorn.d;
          ACORN &acorn = index_acorn.acorn;
          size_t ntotal = n0 + n;
@@ -366,9 +366,12 @@ namespace faiss
        float *distances,
        idx_t *labels,
        char *filter_id_map,
+       std::vector<double> *query_times, // 记录每个查询耗时（毫秒/秒）
+       std::vector<double> *query_qps,   // 记录每个查询QPS
+       std::vector<size_t> *query_n3,    // 记录每个查询的n3
        const SearchParameters *params_in) const
    {
-      omp_set_num_threads(1); // thread=1
+      omp_set_num_threads(32); // thread=32
       // std::cout << "enter IndexACORN::search" << std::endl;
 
       FAISS_THROW_IF_NOT(k > 0);
@@ -395,16 +398,17 @@ namespace faiss
       {
          idx_t i1 = std::min(i0 + check_period, n);
 
-#pragma omp parallel num_threads(1)
+#pragma omp parallel num_threads(32)
          {
             VisitedTable vt(ntotal);
 
             DistanceComputer *dis = storage_distance_computer(storage);
             ScopeDeleter1<DistanceComputer> del(dis);
 
-            // #pragma omp for reduction(+ : n1, n2, n3, ndis, nreorder, candidates_loop)
+#pragma omp for reduction(+ : n1, n2, n3, ndis, nreorder, candidates_loop)
             for (idx_t i = i0; i < i1; i++)
             {
+               double t_start = omp_get_wtime(); // 记录开始时间
                idx_t *idxi = labels + i * k;
                float *simi = distances + i * k;
                char *filters = filter_id_map + i * ntotal;
@@ -431,16 +435,21 @@ namespace faiss
                n3 += stats.n3;
                ndis += stats.ndis;
                nreorder += stats.nreorder;
-               // printf("index -- stats updates: %f\n",
-               // stats.candidates_loop); printf("index -- stats updates:
-               // %f\n", stats.neighbors_loop);
-               // added for profiling
                candidates_loop += stats.candidates_loop;
                neighbors_loop += stats.neighbors_loop;
                tuple_unwrap += stats.tuple_unwrap;
                skips += stats.skips;
                visits += stats.visits;
                maxheap_reorder(k, simi, idxi);
+               double t_end = omp_get_wtime();
+               double elapsed = t_end - t_start;
+
+               if (query_times)
+                  query_times->at(i) = elapsed;
+               if (query_qps)
+                  query_qps->at(i) = 1.0 / elapsed; // QPS = 1/耗时
+               if (query_n3)
+                  query_n3->at(i) = stats.n3; // 新增
             }
          }
          InterruptCallback::check();
